@@ -24,6 +24,11 @@ const TABELLE = {
   "sch.": ["stueck", 1, "Scheiben"], "sch": ["stueck", 1, "Scheiben"],
   "dose": ["stueck", 1, "Dose"], "dosen": ["stueck", 1, "Dosen"], "sack": ["stueck", 1, "Sack"],
   "kleine": ["stueck", 1, "kleine"], "handvoll": ["stueck", 1, "Handvoll"],
+  "pack.": ["stueck", 1, "Pack."], "packung": ["stueck", 1, "Packung"], "päckli": ["stueck", 1, "Päckli"],
+  "sträusschen": ["stueck", 1, "Sträusschen"], "kl. sträusschen": ["stueck", 1, "kl. Sträusschen"],
+  "str.": ["stueck", 1, "Sträusschen"], "teil": ["stueck", 1, "Teil"], "teile": ["stueck", 1, "Teile"],
+  "tasse": ["loeffel", 1, "Tasse"], "tassen": ["loeffel", 1, "Tassen"],
+  "msp.": ["loeffel", 1, "Msp."], "msp": ["loeffel", 1, "Msp."],
   "el": ["loeffel", 1, "EL"], "el.": ["loeffel", 1, "EL"], "esslöffel": ["loeffel", 1, "EL"],
   "tl": ["loeffel", 1, "TL"], "tl.": ["loeffel", 1, "TL"], "teelöffel": ["loeffel", 1, "TL"],
   "prise": ["loeffel", 1, "Prise"], "prisen": ["loeffel", 1, "Prisen"], "pr": ["loeffel", 1, "Prise"],
@@ -101,12 +106,14 @@ export function menge(zutat, faktor = 1) {
   return { wert, einheit: einh, orig: `${original.wert} ${original.einheit}`.trim() };
 }
 
-const MEHRZAHL = { Prise: "Prisen", Zehe: "Zehen", Scheibe: "Scheiben", Dose: "Dosen", Zweig: "Zweige" };
+const MEHRZAHL = { Prise: "Prisen", Zehe: "Zehen", Scheibe: "Scheiben", Dose: "Dosen", Zweig: "Zweige", Tasse: "Tassen", Teil: "Teile" };
 const mehrzahl = (label, wert) => (wert > 1 && MEHRZAHL[label]) || label;
 
-// Originalwert: halbe als Bruch, sonst normale Zahl
+// Originalwert: halbe und viertel als Bruch, sonst normale Zahl
 function schoeneZahl(x) {
-  return Math.abs(x * 2 - Math.round(x * 2)) < 1e-9 && x % 1 !== 0 ? halbe(x) : zahl(x);
+  if (Math.abs(x * 2 - Math.round(x * 2)) < 1e-9 && x % 1 !== 0) return halbe(x);
+  const viertel = { 0.25: "¼", 0.75: "¾" }[x % 1];
+  return viertel ? `${Math.floor(x) || ""}${viertel}` : zahl(x);
 }
 
 export function mengeText(zutat, faktor = 1) {

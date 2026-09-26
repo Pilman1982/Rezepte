@@ -2,7 +2,7 @@ import * as db from "./db.js";
 import { Suchindex, feldName, normalisiere } from "./suche.js";
 import { menge, mengeText, zielEinheiten, faktorAusZutat, standardZielEinheit, leseZahl, zahl } from "./umrechnen.js";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 // ---------------------------------------------------------------------------
 // Hilfen
@@ -24,6 +24,7 @@ const ICON = {
   kopieren: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
   teilen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
   schliessen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  export: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
 };
 
 // Farbton je Kategorie (Punkt in der Liste)
@@ -160,8 +161,8 @@ function zeigeListe() {
   document.title = "Rezepte";
   renderListe();
   $("#detail-pane").innerHTML = S.rezepte.length
-    ? '<div class="platzhalter"><p>Rezept auswählen</p></div>'
-    : '<div class="platzhalter"><p>Noch keine Rezepte auf diesem Gerät.</p></div>';
+    ? '<div class="platzhalter"><img src="icons/icon.svg" alt=""><p>Rezept in der Liste auswählen</p></div>'
+    : '<div class="platzhalter"><img src="icons/icon.svg" alt=""><p>Noch keine Rezepte auf diesem Gerät.</p></div>';
 }
 
 function bindeListe() {
@@ -515,9 +516,14 @@ function zeigeDetail(r) {
   const schritte = hatSchritte(r) ? schritteHtml(r) : "";
   let freitext = "";
   if (textZeigen(r)) {
-    freitext = schritte
-      ? `<details class="karte aufklapp"><summary>Originaltext</summary><div class="freitext">${esc(r.text)}</div></details>`
-      : `<section class="abschnitt"><h2>Rezepttext</h2><div class="freitext">${esc(r.text)}</div></section>`;
+    // Bei abgeschriebenen Rezepten (Skill «rezepte-sammeln») enthält «text» Notizen wie
+    // «von Hand korrigiert» – die sind wichtig und bleiben sichtbar
+    const notiz = r.text_art === "notiz";
+    freitext = !schritte
+      ? `<section class="abschnitt"><h2>Rezepttext</h2><div class="freitext">${esc(r.text)}</div></section>`
+      : notiz
+        ? `<section class="abschnitt"><h2>Notizen</h2><div class="freitext">${esc(r.text)}</div></section>`
+        : `<details class="karte aufklapp"><summary>Originaltext</summary><div class="freitext">${esc(r.text)}</div></details>`;
   }
 
   pane.innerHTML = `<article class="rezept" style="--h:${katFarbe(r.kategorie)}">
@@ -906,8 +912,14 @@ async function zeigeVerwaltung() {
       ${iosImBrowser ? '<p class="hinweis-ios"><strong>Hinweis:</strong> Du bist im Safari-Tab. Installiere die App zuerst (Teilen → «Zum Home-Bildschirm») und importiere dort – Safari und die App speichern getrennt.</p>' : ""}
       ${m?.unbereinigt ? '<p class="warnung">Die importierte Datei war nicht sprachbereinigt. Besser <strong>rezepte_de.json</strong> verwenden.</p>' : ""}
       <button type="button" class="knopf knopf-gross" data-aktion="importieren">${anzahl ? "Rezepte aktualisieren" : "Rezepte importieren"}</button>
-      <p class="klein">Datei <strong>rezepte_de.json</strong> wählen. Beim Aktualisieren werden alle Rezepte ersetzt; Favoriten bleiben erhalten.</p>
+      <p class="klein">Datei <strong>rezepte_de.json</strong> oder eine exportierte Sicherung wählen. Beim Aktualisieren werden alle Rezepte ersetzt; Favoriten bleiben erhalten.</p>
     </section>
+    ${anzahl ? `<section class="karte">
+      <h2 class="karte-titel">Exportieren (Sicherung)</h2>
+      <p>Speichert alle ${anzahl} Rezepte und ${S.favoriten.size} Favoriten in einer JSON-Datei. Mit «Rezepte importieren» lässt sie sich auf jedem Gerät wieder einlesen.</p>
+      <button type="button" class="knopf knopf-zweit knopf-breit" data-aktion="exportieren">${ICON.export} Alle Rezepte exportieren</button>
+      <p class="klein">${istIOS ? "iPhone: Im Teilen-Menü «In Dateien sichern» wählen, z. B. in OneDrive." : "Windows: Die Datei landet im Ordner «Downloads»."}</p>
+    </section>` : ""}
     <section class="karte">
       <h2 class="karte-titel">Wo ist die Datei?</h2>
       <p><strong>iPhone:</strong> Im Auswahlfenster «Durchsuchen» → OneDrive → Ordner <em>Rezept-App</em> → <em>daten</em>.</p>
@@ -933,6 +945,7 @@ async function zeigeVerwaltung() {
     const b = e.target.closest("[data-aktion]");
     if (!b) return;
     if (b.dataset.aktion === "zurueck") zurueck();
+    if (b.dataset.aktion === "exportieren") exportiere();
     if (b.dataset.aktion === "alles-loeschen") {
       if (!confirm("Wirklich alle Rezepte und Favoriten von diesem Gerät löschen?")) return;
       await db.loescheAlles();
@@ -976,13 +989,55 @@ async function ergaenzeIds(liste) {
   }
 }
 
+// Sicherung aller Rezepte und Favoriten als JSON-Datei.
+// Format: { format: "rezepte-app", version, exportiert, anzahl, favoriten: [id], rezepte: [...] }
+async function exportiere() {
+  const heute = new Date();
+  const datum = `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, "0")}-${String(heute.getDate()).padStart(2, "0")}`;
+  const name = `rezepte_sicherung_${datum}.json`;
+  const inhalt = {
+    format: "rezepte-app",
+    version: 1,
+    exportiert: heute.toISOString(),
+    anzahl: S.rezepte.length,
+    favoriten: [...S.favoriten],
+    rezepte: S.rezepte,
+  };
+  const blob = new Blob([JSON.stringify(inhalt, null, 1)], { type: "application/json" });
+  const datei = new File([blob], name, { type: "application/json" });
+  // iPhone: Teilen-Menü («In Dateien sichern»); sonst normaler Download
+  if (istIOS && navigator.canShare?.({ files: [datei] })) {
+    try {
+      await navigator.share({ files: [datei], title: name });
+      zeigeToast("Sicherung erstellt");
+    } catch (e) {
+      if (e?.name !== "AbortError") zeigeToast("Export nicht möglich: " + (e?.message || e), 6000);
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  zeigeToast(`${S.rezepte.length} Rezepte exportiert: ${name}`, 5000);
+}
+
 async function importiereDatei(datei) {
   zeigeToast("Rezepte werden gelesen …", 0);
-  let daten;
+  let daten, favoritenAusSicherung = null;
   try {
     daten = JSON.parse(await datei.text());
   } catch {
     return zeigeToast("Das ist keine gültige Rezeptdatei. Bitte rezepte_de.json wählen.", 6000);
+  }
+  // Eigene Sicherung (Export) enthält Rezepte und Favoriten
+  if (daten && !Array.isArray(daten) && Array.isArray(daten.rezepte)) {
+    favoritenAusSicherung = Array.isArray(daten.favoriten) ? daten.favoriten.map(String) : null;
+    daten = daten.rezepte;
   }
   if (!Array.isArray(daten) || !daten.length || !daten.every(istRezept)) {
     return zeigeToast("Die Datei enthält keine Rezeptliste. Bitte rezepte_de.json wählen.", 6000);
@@ -1019,11 +1074,24 @@ async function importiereDatei(datei) {
   S.meta = meta;
   S.skala.clear();
   setzeRezepte(daten);
+  // Favoriten aus einer Sicherung dazunehmen (bestehende bleiben)
+  let neueFavoriten = 0;
+  if (favoritenAusSicherung) {
+    for (const id of favoritenAusSicherung) {
+      if (!S.nachId.has(id) || S.favoriten.has(id)) continue;
+      S.favoriten.add(id);
+      neueFavoriten++;
+      try {
+        await db.setzeFavorit(id, true);
+      } catch {}
+    }
+  }
   fuelleFilter();
   try {
     await navigator.storage?.persist?.();
   } catch {}
-  zeigeToast(erstimport ? `${daten.length} Rezepte importiert` : `Aktualisiert: ${bericht}`, 5000);
+  const favText = neueFavoriten ? `, ${neueFavoriten} Favoriten übernommen` : "";
+  zeigeToast((erstimport ? `${daten.length} Rezepte importiert` : `Aktualisiert: ${bericht}`) + favText, 5000);
   if (ohneId) setTimeout(() => zeigeToast("Hinweis: Datei war nicht sprachbereinigt (rezepte_de.json verwenden).", 6000), 5200);
   if (location.hash.startsWith("#/import")) zeigeVerwaltung();
   else route();

@@ -1,6 +1,6 @@
 // Service Worker: hält die App-Hülle offline bereit.
 // Bei jeder Änderung an den App-Dateien VERSION erhöhen, sonst sehen die Geräte die neue Fassung nicht.
-const VERSION = "rezepte-v1";
+const VERSION = "rezepte-v2";
 const DATEIEN = [
   "./",
   "./index.html",
@@ -18,7 +18,9 @@ const DATEIEN = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(DATEIEN)));
+  // «reload»: am Browser-Cache vorbei direkt vom Server laden, sonst landen nach einem Update
+  // womöglich noch alte Dateien im neuen Offline-Speicher
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(DATEIEN.map((d) => new Request(d, { cache: "reload" })))));
 });
 
 self.addEventListener("activate", (e) => {
