@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Rezepte</title>
+  <meta name="description" content="Persönliche Rezeptsammlung, offline nutzbar">
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14110e" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Rezepte">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div id="app" class="layout">
+    <!-- Liste -->
+    <section id="liste-pane" class="pane pane-liste" aria-label="Rezeptliste">
+      <header class="kopf">
+        <h1 class="kopf-titel">Rezepte</h1>
+        <a href="#/import" class="knopf-icon" id="btn-verwalten" aria-label="Rezepte importieren und verwalten" title="Rezepte importieren und verwalten">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </a>
+      </header>
+
+      <div class="suchbereich" id="suchbereich">
+        <div class="suchfeld">
+          <svg class="suchfeld-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="suche" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Titel, Zutat, Zubereitung …" aria-label="Rezepte durchsuchen">
+          <button id="suche-leeren" class="suchfeld-leeren" type="button" aria-label="Suche leeren" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <div class="filterzeile">
+          <button id="btn-filter" class="chip" type="button" aria-expanded="false" aria-controls="filter-panel">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            Filter<span id="filter-zahl" class="chip-zahl" hidden></span>
+          </button>
+          <button id="btn-favoriten" class="chip" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+            Favoriten
+          </button>
+          <label class="sortierung">
+            <span class="sr">Sortierung</span>
+            <select id="sortierung" aria-label="Sortierung">
+              <option value="relevanz">Beste Treffer</option>
+              <option value="az">A bis Z</option>
+              <option value="kategorie">Kategorie</option>
+              <option value="jahr">Jahr</option>
+            </select>
+          </label>
+        </div>
+        <div id="filter-panel" class="filter-panel" hidden>
+          <label>Kategorie<select id="f-kategorie"></select></label>
+          <label>Quelle<select id="f-quelle"></select></label>
+          <label>Herkunft<select id="f-posten"></select></label>
+          <button id="filter-zuruecksetzen" type="button" class="knopf knopf-leise">Filter zurücksetzen</button>
+        </div>
+        <div id="aktive-filter" class="aktive-filter"></div>
+      </div>
+
+      <p id="anzahl" class="anzahl" aria-live="polite"></p>
+      <ul id="liste" class="liste"></ul>
+
+      <div id="willkommen" class="willkommen" hidden>
+        <img src="icons/icon.svg" alt="" width="88" height="88">
+        <h2>Willkommen</h2>
+        <p class="hinweis-ios" hidden><strong>Zuerst installieren:</strong> Teilen-Symbol → «Zum Home-Bildschirm», dann die App vom Home-Bildschirm öffnen und dort importieren. Safari und die installierte App speichern getrennt.</p>
+        <p>Die App enthält noch keine Rezepte. Wähle die Datei <strong>rezepte_de.json</strong> aus deinem OneDrive (auf dem iPhone über die App «Dateien»).</p>
+        <button type="button" class="knopf knopf-gross" data-aktion="importieren">Rezepte importieren</button>
+        <p class="klein">Die Rezepte werden nur auf diesem Gerät gespeichert und funktionieren danach auch ohne Internet.</p>
+      </div>
+    </section>
+
+    <!-- Rezept / Verwaltung -->
+    <main id="detail-pane" class="pane pane-detail" tabindex="-1"></main>
+  </div>
+
+  <!-- Kochmodus -->
+  <section id="kochen" class="kochen" hidden aria-label="Kochmodus"></section>
+
+  <input id="datei" type="file" class="sr" tabindex="-1" aria-hidden="true">
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="update" class="update" hidden>
+    <span>Neue Version der App verfügbar.</span>
+    <button type="button" class="knopf" id="btn-update">Jetzt laden</button>
+  </div>
+  <noscript><p style="padding:2rem">Diese App braucht JavaScript.</p></noscript>
+</body>
+</html>
