@@ -1,8 +1,9 @@
 import * as db from "./db.js";
 import { Suchindex, feldName, normalisiere } from "./suche.js";
 import { menge, mengeText, zielEinheiten, faktorAusZutat, standardZielEinheit, leseZahl, zahl } from "./umrechnen.js";
+import { mischeRezepte, mischBericht } from "./mischen.js";
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 // ---------------------------------------------------------------------------
 // Hilfen
@@ -13,6 +14,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const vergleiche = new Intl.Collator("de-CH", { sensitivity: "base", numeric: true }).compare;
 const schmal = () => !matchMedia("(min-width: 900px)").matches;
 const istIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const istAndroid = /Android/i.test(navigator.userAgent);
 // Auf dem iPhone im normalen Safari-Tab (nicht als installierte App)
 const iosImBrowser = istIOS && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches;
 const OHNE = "__ohne__";
@@ -891,7 +893,8 @@ async function zeigeVerwaltung() {
   setzeAnsicht("detail");
   document.title = "Rezepte verwalten";
   const m = S.meta;
-  const datum = m?.datum ? new Date(m.datum).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" }) : "";
+  const datumText = (iso) => (iso ? new Date(iso).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" }) : "");
+  const datum = datumText(m?.datum);
   let dauerhaft = "unbekannt";
   try {
     if (navigator.storage?.persisted) dauerhaft = (await navigator.storage.persisted()) ? "ja" : "nein (der Browser darf bei Platzmangel löschen)";
@@ -907,22 +910,32 @@ async function zeigeVerwaltung() {
     <section class="karte">
       <h2 class="karte-titel">Auf diesem Gerät</h2>
       <p class="zahl-gross">${anzahl} Rezepte</p>
-      <p>${m ? `Importiert am ${esc(datum)} aus «${esc(m.datei)}».` : "Noch keine Rezepte importiert."}</p>
+      <p>${m?.datei ? `Importiert am ${esc(datum)} aus «${esc(m.datei)}».` : m?.zusatz ? "Bisher nur über «Rezepte hinzufügen» geladen." : "Noch keine Rezepte importiert."}</p>
       ${m?.bericht ? `<p class="leise">Letzter Import: ${esc(m.bericht)}</p>` : ""}
       ${iosImBrowser ? '<p class="hinweis-ios"><strong>Hinweis:</strong> Du bist im Safari-Tab. Installiere die App zuerst (Teilen → «Zum Home-Bildschirm») und importiere dort – Safari und die App speichern getrennt.</p>' : ""}
       ${m?.unbereinigt ? '<p class="warnung">Die importierte Datei war nicht sprachbereinigt. Besser <strong>rezepte_de.json</strong> verwenden.</p>' : ""}
       <button type="button" class="knopf knopf-gross" data-aktion="importieren">${anzahl ? "Rezepte aktualisieren" : "Rezepte importieren"}</button>
       <p class="klein">Datei <strong>rezepte_de.json</strong> oder eine exportierte Sicherung wählen. Beim Aktualisieren werden alle Rezepte ersetzt; Favoriten bleiben erhalten.</p>
     </section>
+    <section class="karte">
+      <h2 class="karte-titel">Rezepte hinzufügen</h2>
+      <p>Fügt Rezepte aus einer weiteren JSON-Datei dazu, ohne die vorhandenen zu entfernen – zum Beispiel <strong>eigene_rezepte.json</strong> aus dem Skill «rezept-erfassen». Rezepte mit gleicher id werden aktualisiert; alte Einträge, die ein neues Rezept ablöst, werden entfernt.</p>
+      ${m?.zusatz ? `<p class="leise">Zuletzt hinzugefügt: ${esc(m.zusatz.bericht)} (${esc(datumText(m.zusatz.datum))}, «${esc(m.zusatz.datei)}»)</p>` : ""}
+      <button type="button" class="knopf knopf-zweit knopf-breit" data-aktion="hinzufuegen">Rezepte hinzufügen</button>
+      <p class="klein">Die Datei liegt im OneDrive unter <em>Rezept-App\\daten\\quellen</em>. Dieselbe Datei darf mehrmals hinzugefügt werden; Favoriten bleiben erhalten.</p>
+    </section>
     ${anzahl ? `<section class="karte">
       <h2 class="karte-titel">Exportieren (Sicherung)</h2>
       <p>Speichert alle ${anzahl} Rezepte und ${S.favoriten.size} Favoriten in einer JSON-Datei. Mit «Rezepte importieren» lässt sie sich auf jedem Gerät wieder einlesen.</p>
       <button type="button" class="knopf knopf-zweit knopf-breit" data-aktion="exportieren">${ICON.export} Alle Rezepte exportieren</button>
-      <p class="klein">${istIOS ? "iPhone: Im Teilen-Menü «In Dateien sichern» wählen, z. B. in OneDrive." : "Windows: Die Datei landet im Ordner «Downloads»."}</p>
+      <p class="klein">${istIOS ? "iPhone: Im Teilen-Menü «In Dateien sichern» wählen, z. B. in OneDrive."
+        : istAndroid ? "Android: Die Datei landet im Ordner «Downloads» (App «Files» bzw. «Eigene Dateien»)."
+        : "Windows: Die Datei landet im Ordner «Downloads»."}</p>
     </section>` : ""}
     <section class="karte">
       <h2 class="karte-titel">Wo ist die Datei?</h2>
       <p><strong>iPhone:</strong> Im Auswahlfenster «Durchsuchen» → OneDrive → Ordner <em>Rezept-App</em> → <em>daten</em>.</p>
+      <p><strong>Android:</strong> Im Auswahlfenster links das Menü ☰ öffnen → OneDrive → Ordner <em>Rezept-App</em> → <em>daten</em>. Fehlt OneDrive dort, die Datei zuerst in der OneDrive-App herunterladen und aus «Downloads» wählen.</p>
       <p><strong>Windows:</strong> Im OneDrive-Ordner unter <em>Rezept-App\\daten</em>.</p>
     </section>
     <section class="karte">
@@ -1026,7 +1039,7 @@ async function exportiere() {
   zeigeToast(`${S.rezepte.length} Rezepte exportiert: ${name}`, 5000);
 }
 
-async function importiereDatei(datei) {
+async function importiereDatei(datei, modus = "ersetzen") {
   zeigeToast("Rezepte werden gelesen …", 0);
   let daten, favoritenAusSicherung = null;
   try {
@@ -1052,6 +1065,7 @@ async function importiereDatei(datei) {
     r.id = id;
     ids.add(id);
   }
+  if (modus === "hinzufuegen") return hinzufuegen(daten, datei);
 
   const alt = new Map(S.rezepte.map((r) => [r.id, JSON.stringify(r)]));
   const erstimport = alt.size === 0;
@@ -1098,6 +1112,40 @@ async function importiereDatei(datei) {
   renderListe();
 }
 
+// «Rezepte hinzufügen»: Datei in den Bestand mischen statt alles zu ersetzen
+async function hinzufuegen(daten, datei) {
+  const erg = mischeRezepte(S.rezepte, daten);
+  const bericht = mischBericht(erg);
+  const meta = { ...(S.meta || {}), zusatz: { datum: new Date().toISOString(), datei: datei.name, anzahl: daten.length, bericht } };
+  try {
+    await db.ersetzeRezepte(erg.rezepte, meta);
+  } catch (e) {
+    console.error(e);
+    return zeigeToast("Speichern fehlgeschlagen. Ist genug Speicherplatz frei?", 6000);
+  }
+  // Favoriten abgelöster Rezepte auf den Nachfolger übertragen
+  for (const [altId, neuId] of erg.ersetztDurch) {
+    if (!S.favoriten.has(altId)) continue;
+    S.favoriten.delete(altId);
+    S.favoriten.add(neuId);
+    try {
+      await db.setzeFavorit(altId, false);
+      await db.setzeFavorit(neuId, true);
+    } catch {}
+  }
+  S.meta = meta;
+  S.skala.clear();
+  setzeRezepte(erg.rezepte);
+  fuelleFilter();
+  try {
+    await navigator.storage?.persist?.();
+  } catch {}
+  zeigeToast(`Hinzugefügt: ${bericht}`, 5000);
+  if (location.hash.startsWith("#/import")) zeigeVerwaltung();
+  else route();
+  renderListe();
+}
+
 // ---------------------------------------------------------------------------
 // Allgemeines
 // ---------------------------------------------------------------------------
@@ -1112,16 +1160,20 @@ function zeigeToast(text, dauer = 3000) {
 
 function bindeGlobal() {
   const datei = $("#datei");
-  // Auf dem iPhone ohne Filter, damit die JSON-Datei im Auswahlfenster sicher wählbar ist
-  if (!istIOS) datei.setAttribute("accept", ".json,application/json");
+  // Auf iPhone und Android ohne Filter: manche Cloud-Apps melden den Dateityp falsch,
+  // dann wäre die JSON-Datei im Auswahlfenster ausgegraut
+  if (!istIOS && !istAndroid) datei.setAttribute("accept", ".json,application/json");
   for (const h of $$(".hinweis-ios")) h.hidden = !iosImBrowser;
   datei.addEventListener("change", () => {
     const f = datei.files?.[0];
     datei.value = "";
-    if (f) importiereDatei(f);
+    if (f) importiereDatei(f, S.importModus || "ersetzen");
   });
   document.addEventListener("click", (e) => {
-    if (e.target.closest('[data-aktion="importieren"]')) datei.click();
+    const knopf = e.target.closest('[data-aktion="importieren"], [data-aktion="hinzufuegen"]');
+    if (!knopf) return;
+    S.importModus = knopf.dataset.aktion === "hinzufuegen" ? "hinzufuegen" : "ersetzen";
+    datei.click();
   });
   document.addEventListener("keydown", (e) => {
     const inFeld = e.target.closest("input, select, textarea");

@@ -1,12 +1,13 @@
 // Service Worker: hält die App-Hülle offline bereit.
 // Bei jeder Änderung an den App-Dateien VERSION erhöhen, sonst sehen die Geräte die neue Fassung nicht.
-const VERSION = "rezepte-v2";
+const VERSION = "rezepte-v4";
 const DATEIEN = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./db.js",
+  "./mischen.js",
   "./suche.js",
   "./umrechnen.js",
   "./manifest.webmanifest",
